@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Sharing Platform</title>
+    <!-- Link to your separate CSS file -->
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+    <!-- Top Navigation Bar -->
+    <header class="navbar">
+        <div class="logo" onclick="location.reload()">📹 ViewStream</div>
+        
+        <div class="search-bar">
+            <!-- Input element with ID 'q' for video searches -->
+            <input type="text" id="q" placeholder="Search videos..." oninput="loadVideos()">
+        </div>
+        
+        <div class="nav-buttons">
+            <button class="primary" onclick="openUpload()">➕ Upload</button>
+            <button class="primary" onclick="openAuth()">👤 Account</button>
+        </div>
+    </header>
+
+    <!-- Main Content Layout -->
+    <main class="container">
+        <!-- Heading element referenced by script.js -->
+        <h2 id="heading">Recommended</h2>
+        
+        <!-- Video list destination element referenced by script.js -->
+        <div id="content" class="grid">
+            <p>Loading videos...</p>
+        </div>
+    </main>
+
+    <!-- Global Floating Action Toast Notification -->
+    <div id="toast" class="toast-popup" style="display: none;"></div>
+
+    <!-- Global Video / Auth / Upload Overlay Modal Layer -->
+    <div id="modal" class="modal-backdrop" style="display: none;">
+        <div class="modal-content">
+            <!-- Close icon pointing to your window.closeModal utility -->
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <div id="modalBody">
+                <!-- script.js will dynamically inject HTML forms/videos here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Link your frontend JavaScript file -->
+    <script src="/js/script.js"></script>
+</body>
+</html>

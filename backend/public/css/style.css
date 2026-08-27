@@ -1,0 +1,61 @@
+/* --- Base Theme Setup --- */
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #f9f9f9;
+    color: #111;
+}
+
+/* --- Header & Search Bar Layout --- */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #ffffff;
+    padding: 10px 24px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.1);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+.logo { font-size: 20px; font-weight: bold; cursor: pointer; }
+.search-bar input {
+    width: 350px;
+    padding: 8px 14px;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    font-size: 14px;
+}
+
+/* --- Content Layout Containers --- */
+.container { padding: 24px; max-width: 1200px; margin: 0 auto; }
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 20px;
+}
+
+/* --- Card Styles --- */
+.card { cursor: pointer; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.thumb { position: relative; width: 100%; aspect-ratio: 16/9; background: #ddd; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; }
+.dur { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.8); color: #fff; padding: 2px 4px; font-size: 12px; border-radius: 2px; }
+.meta { display: flex; padding: 12px; gap: 10px; }
+.ca { width: 36px; height: 36px; background: #f04; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+.title { font-weight: bold; font-size: 14px; line-height: 1.2; margin-bottom: 4px; }
+.muted { color: #606060; font-size: 12px; }
+
+/* --- Forms & UI Elements --- */
+.form { display: flex; flex-direction: column; gap: 12px; margin-top: 15px; }
+.form input, .form textarea, .form select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+button.primary { background: #065fd4; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+button.primary:hover { background: #004ba0; }
+
+/* --- Modal Configurations --- */
+.modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; overflow-y: auto; }
+.modal-content { background: #fff; width: 90%; max-width: 650px; margin: 40px auto; padding: 24px; border-radius: 8px; position: relative; }
+.close-btn { position: absolute; top: 15px; right: 20px; font-size: 28px; cursor: pointer; }
+.video { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 4px; }
+
+/* --- Toast Popup Notifications --- */
+.toast-popup { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #323232; color: #fff; padding: 12px 24px; border-radius: 4px; z-index: 2000; box-shadow: 0 3px 6px rgba(0,0,0,0.2); }
