@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-import serverless from 'serverless-http'; // Changed from 'require' to 'import'
+import serverless from 'serverless-http';
 import connectDB from "./config/database.js";
 import app from "./app.js";
 
@@ -27,7 +27,7 @@ const connectToDatabase = async () => {
     }
 };
 
-// We wrap your app in serverless-http and intercept requests to ensure the DB connects first
+// Wrap app in serverless-http and ensure the DB connects first
 const handler = serverless(app, {
     async request(request, context) {
         context.callbackWaitsForEmptyEventLoop = false; // Prevents function timeouts with MongoDB
