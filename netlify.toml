@@ -1,7 +1,12 @@
 [build]
   functions = "backend/src"
 
+
+[functions]
+  node_bundler = "esbuild"
+
+
 [[redirects]]
   from = "/api/*"
-  to = "/.netlify/functions/index/:splat"
+  to = "/.netlify/functions/index/api/:splat"
   status = 200
