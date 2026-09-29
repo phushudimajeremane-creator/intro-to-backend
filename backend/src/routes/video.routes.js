@@ -1,25 +1,13 @@
 import { Router } from "express";
 import multer from "multer";
 import path from "path";
-import fs from "fs";
-import { fileURLToPath } from "url";
 import Video from "../models/Video.js";
 import Comment from "../models/Comment.js";
 
 const router = Router();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const uploadDir = path.join(__dirname, "../../public/uploads");
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, uploadDir),
-    filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
-});
+// FIX: Switch Multer to use memoryStorage instead of diskStorage for serverless architectures
+const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 // ==================== 1. GET ALL VIDEOS (HOMEPAGE GRID) ====================
@@ -27,12 +15,11 @@ router.get("/", async (req, res) => {
     try {
         const { q, category } = req.query;
         let queryFilter = {};
-        if (q) queryFilter.title = { $regex: q, $options: "i" };
+        if (q) queryFilter.title = { regex: q, options: "i" };
         if (category && category !== "All") queryFilter.category = category;
 
         const videos = await Video.find(queryFilter).populate("owner", "username");
         
-        // ✅ CRITICAL SAFETY FIX: Format video objects to ensure 'likes' is always an array
         const safeVideos = videos.map(video => {
             const vObj = video.toObject();
             if (!vObj.likes || !Array.isArray(vObj.likes)) {
@@ -56,13 +43,14 @@ router.post("/upload", upload.single("video"), async (req, res) => {
 
         const { title, description, category } = req.body;
 
+        // NOTE: In production, upload req.file.buffer to Cloudinary/S3 here!
         const newVideo = await Video.create({
             title,
             description,
             category,
-            streamUrl: `/uploads/${req.file.filename}`,
+            streamUrl: `https://example.com`, // Temporary URL until cloud storage is added
             thumbnail: "https://unsplash.com", 
-            likes: [], // ✅ Always initialize likes as an empty array
+            likes: [], 
             owner: userId
         });
 
@@ -83,7 +71,6 @@ router.get("/:id", async (req, res) => {
 
         const videoData = video.toObject();
         
-        // ✅ SAFETY FIX: Force likes to fall back to an empty array if missing
         if (!videoData.likes || !Array.isArray(videoData.likes)) {
             videoData.likes = [];
         }
@@ -102,14 +89,11 @@ router.get("/:id", async (req, res) => {
 router.post("/:id/like", async (req, res) => {
     try {
         const userId = req.cookies.userId;
-        if (!userId) {
-            return res.status(401).json({ error: "You must be logged in to like videos." });
-        }
+        if (!userId) return res.status(401).json({ error: "You must be logged in to like videos." });
 
         const video = await Video.findById(req.params.id);
         if (!video) return res.status(404).json({ error: "Video not found." });
 
-        // ✅ SAFETY FIX: If this is an older video without a likes array, create it now
         if (!video.likes || !Array.isArray(video.likes)) {
             video.likes = [];
         }
@@ -118,10 +102,8 @@ router.post("/:id/like", async (req, res) => {
         const hasLiked = video.likes.map(id => id.toString()).includes(stringUserId);
 
         if (hasLiked) {
-            // Unlike: Remove user ID from array
             video.likes = video.likes.filter(id => id.toString() !== stringUserId);
         } else {
-            // Like: Push user ID to array
             video.likes.push(userId);
         }
 
@@ -165,35 +147,21 @@ router.post("/:id/comments", async (req, res) => {
 router.delete("/:id", async (req, res) => {
     try {
         const userId = req.cookies.userId;
-        if (!userId) {
-            return res.status(401).json({ error: "You must be logged in to delete videos." });
-        }
+        if (!userId) return res.status(401).json({ error: "You must be logged in to delete videos." });
 
         const video = await Video.findById(req.params.id);
         if (!video) return res.status(404).json({ error: "Video not found." });
 
-        // 🚨 SECURITY CHECK: Ensure the logged-in user is the owner of this video
         if (video.owner.toString() !== userId.toString()) {
             return res.status(403).json({ error: "You are not authorized to delete this video." });
         }
 
-        // 📁 FILE SYSTEM CLEANUP: Remove the physical .mp4 file from disk
-        if (video.streamUrl.startsWith("/uploads/")) {
-            // Reconstruct the absolute path to the file
-            const filePath = path.join(__dirname, "../../public", video.streamUrl);
-            
-            if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath); // Deletes the physical file
-            }
-        }
+        // NOTE: In production, add cloud asset removal logic here instead of local fs.unlinkSync
 
-        // 🗑️ DATABASE CLEANUP: Delete the video record from MongoDB
         await Video.findByIdAndDelete(req.params.id);
-
-        // Optional: Also delete any comments associated with this video
         await Comment.deleteMany({ video: req.params.id });
 
-        res.status(200).json({ message: "Video and associated files deleted successfully." });
+        res.status(200).json({ message: "Video deleted successfully." });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
