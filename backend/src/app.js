@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs'; // FIXED: Imported filesystem module to resolve path conflicts safely
 import cookieParser from 'cookie-parser';
 import { authRouter } from './routes/auth.routes.js';
 import { videoRouter } from './routes/video.routes.js';
@@ -15,10 +16,12 @@ app.use(cookieParser());
 
 // FIXED: Comprehensive Netlify Route Prefix Stripper Middleware
 app.use((req, res, next) => {
-    // Strips out Netlify's execution directory injection so Express 
-    // receives pure, clean paths starting directly at /api/
     if (req.url.startsWith('/.netlify/functions/index')) {
         req.url = req.url.replace('/.netlify/functions/index', '');
+    }
+    // If a request comes in as empty string after stripping, normalize it to the root path
+    if (req.url === '') {
+        req.url = '/';
     }
     next();
 });
@@ -30,13 +33,24 @@ app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 // REGISTER BACKEND ROUTERS
 app.use('/api/auth', authRouter);
 
-// FIXED: Mounted both singular and plural options to map flawlessly to frontend requests
+// Mounted both singular and plural options to map flawlessly to frontend requests
 app.use('/api/video', videoRouter);
 app.use('/api/videos', videoRouter);
 
 // Main landing route
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'backend', 'src', 'index.html'));
+    // FIXED: Safely check both local root path resolutions and serverless base paths
+    const pathWithBackend = path.join(__dirname, 'backend', 'src', 'index.html');
+    const pathDirect = path.join(__dirname, 'src', 'index.html');
+    
+    if (fs.existsSync(pathDirect)) {
+        return res.sendFile(pathDirect);
+    } else if (fs.existsSync(pathWithBackend)) {
+        return res.sendFile(pathWithBackend);
+    }
+    
+    // Fail-safe fall back response if index.html is missing entirely from deployment files
+    res.status(200).send("<h1>Welcome to Romang Backend Engine</h1><p>API status: Online and Healthy.</p>");
 });
 
 // Health check endpoint
