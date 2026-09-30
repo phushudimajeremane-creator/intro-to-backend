@@ -1,22 +1,23 @@
 [build]
-  # Tell Netlify where the core application folder lives
+  # Keep your core backend compiling as expected
   base = "backend"
-  # Instruct Netlify to compile the functions out of your source folder
   functions = "src"
+  # FIXED: Tells Netlify to serve files inside the root directory or public folder statically
+  publish = "." 
 
 [functions]
   node_bundler = "esbuild"
 
-# 1. Catch all api endpoints and send them to the index file handler
+# Rule 1: Send all explicit API traffic directly to your Express Backend Function
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/index/api/:splat"
   status = 200
   force = true
 
-# 2. Catch the root domain and all pages, passing them to the index handler
+# Rule 2: If a visitor hits a path that doesn't match an API route or a static file,
+# fallback cleanly to your main HTML file on the CDN layer.
 [[redirects]]
   from = "/*"
-  to = "/.netlify/functions/index"
+  to = "/index.html"
   status = 200
-  force = true
