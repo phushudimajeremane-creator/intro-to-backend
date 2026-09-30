@@ -39,6 +39,7 @@ function closeModal() {
 // ==================== AUTHENTICATION WINDOW INTERFACE ====================
 function openAuth() {
     // Inject the combined Login and Registration template straight into your modal content
+    // FIXED: Cleaned up inline CSS style formatting typo on the Sign Up button
     const authHTML = `
         <div style="padding: 10px; font-family: sans-serif;">
             <h3 style="margin-top: 0; color: #2c3e50;">Account Authentication</h3>
@@ -49,7 +50,7 @@ function openAuth() {
                 <input type="text" id="regUsername" placeholder="Username" style="width:100%; padding:8px; margin-bottom:8px; box-sizing:border-box;">
                 <input type="email" id="regEmail" placeholder="Email Address" style="width:100%; padding:8px; margin-bottom:8px; box-sizing:border-box;">
                 <input type="password" id="regPassword" placeholder="Password" style="width:100%; padding:8px; margin-bottom:10px; box-sizing:border-box;">
-                <button onclick="submitRegister()" style="background:#3498db; color:white; border:none; padding:10px width:100%; cursor:pointer; border-radius:4px; font-weight:bold; width:100%;">Sign Up</button>
+                <button onclick="submitRegister()" style="background:#3498db; color:white; border:none; padding:10px; width:100%; cursor:pointer; border-radius:4px; font-weight:bold;">Sign Up</button>
             </div>
 
             <!-- Login Section -->
@@ -57,7 +58,7 @@ function openAuth() {
                 <h4 style="margin: 0 0 10px 0; color: #34495e;">2. Sign In</h4>
                 <input type="email" id="logEmail" placeholder="Email Address" style="width:100%; padding:8px; margin-bottom:8px; box-sizing:border-box;">
                 <input type="password" id="logPassword" placeholder="Password" style="width:100%; padding:8px; margin-bottom:10px; box-sizing:border-box;">
-                <button onclick="submitLogin()" style="background:#2ecc71; color:white; border:none; padding:10px; width:100%; cursor:pointer; border-radius:4px; font-weight:bold; width:100%;">Log In</button>
+                <button onclick="submitLogin()" style="background:#2ecc71; color:white; border:none; padding:10px; width:100%; cursor:pointer; border-radius:4px; font-weight:bold;">Log In</button>
             </div>
         </div>
     `;
@@ -129,7 +130,8 @@ async function loadVideos() {
     const searchVal = document.getElementById("q")?.value || "";
     
     try {
-        const url = searchVal ? `/api/videos?q=${encodeURIComponent(searchVal)}` : '/api/videos';
+        // Updated path from /api/videos to /api/video to align with both routes in app.js
+        const url = searchVal ? `/api/video?q=${encodeURIComponent(searchVal)}` : '/api/video';
         const res = await fetch(url);
         const data = await res.json();
         
@@ -155,3 +157,11 @@ function openUpload() {
         </div>
     `);
 }
+
+// EXPOSE TO GLOBAL WINDOW LAYER FOR INLINE HTML CLICK RESOLUTIONS
+window.openAuth = openAuth;
+window.submitRegister = submitRegister;
+window.submitLogin = submitLogin;
+window.loadVideos = loadVideos;
+window.openUpload = openUpload;
+window.closeModal = closeModal;
