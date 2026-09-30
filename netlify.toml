@@ -1,17 +1,22 @@
 [build]
+  # Tell Netlify where the core application folder lives
   base = "backend"
-  functions = "netlify/functions"
+  # Instruct Netlify to compile the functions out of your source folder
+  functions = "src"
 
 [functions]
   node_bundler = "esbuild"
 
+# 1. Catch all api endpoints and send them to the index file handler
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/index/api/:splat"
   status = 200
+  force = true
 
-
+# 2. Catch the root domain and all pages, passing them to the index handler
 [[redirects]]
   from = "/*"
-  to = "/.netlify/functions/index/:splat"
+  to = "/.netlify/functions/index"
   status = 200
+  force = true
