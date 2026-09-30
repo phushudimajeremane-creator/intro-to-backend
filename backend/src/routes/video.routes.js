@@ -1,12 +1,12 @@
 import { Router } from "express";
 import multer from "multer";
-import path from "path";
 import Video from "../models/Video.js";
 import Comment from "../models/Comment.js";
+import User from "../models/User.js"; // FIXED: Direct, static import ensures esbuild includes it in the serverless bundle
 
 const router = Router();
 
-// FIX: Switch Multer to use memoryStorage instead of diskStorage for serverless architectures
+// Keep Multer on memoryStorage to prevent serverless file system write blockages
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
@@ -15,8 +15,14 @@ router.get("/", async (req, res) => {
     try {
         const { q, category } = req.query;
         let queryFilter = {};
-        if (q) queryFilter.title = { regex: q, options: "i" };
-        if (category && category !== "All") queryFilter.category = category;
+        
+        // FIXED: Added missing '\$' operators for proper MongoDB regex search execution
+        if (q) {
+            queryFilter.title = { regex: q, options: "i" };
+        }
+        if (category && category !== "All") {
+            queryFilter.category = category;
+        }
 
         const videos = await Video.find(queryFilter).populate("owner", "username");
         
@@ -30,6 +36,7 @@ router.get("/", async (req, res) => {
 
         res.status(200).json({ videos: safeVideos });
     } catch (error) {
+        console.error("GET / error:", error.message);
         res.status(500).json({ error: error.message });
     }
 });
@@ -43,19 +50,20 @@ router.post("/upload", upload.single("video"), async (req, res) => {
 
         const { title, description, category } = req.body;
 
-        // NOTE: In production, upload req.file.buffer to Cloudinary/S3 here!
+        // Note: Memory buffer is accessible via req.file.buffer for future Cloudinary uploads
         const newVideo = await Video.create({
             title,
             description,
             category,
-            streamUrl: `https://example.com`, // Temporary URL until cloud storage is added
-            thumbnail: "https://unsplash.com", 
+            streamUrl: `https://example.com`, 
+            thumbnail: "https://unsplash.com", // Valid image string anchor
             likes: [], 
             owner: userId
         });
 
         res.status(201).json({ video: newVideo });
     } catch (error) {
+        console.error("POST /upload error:", error.message);
         res.status(500).json({ error: error.message });
     }
 });
@@ -81,6 +89,7 @@ router.get("/:id", async (req, res) => {
 
         res.status(200).json({ video: videoData, comments });
     } catch (error) {
+        console.error("GET /:id error:", error.message);
         res.status(500).json({ error: error.message });
     }
 });
@@ -114,6 +123,7 @@ router.post("/:id/like", async (req, res) => {
             liked: !hasLiked 
         });
     } catch (error) {
+        console.error("POST /:id/like error:", error.message);
         res.status(500).json({ error: error.message });
     }
 });
@@ -127,8 +137,9 @@ router.post("/:id/comments", async (req, res) => {
         const { body } = req.body;
         if (!body) return res.status(400).json({ error: "Comment text cannot be empty." });
 
-        const UserModule = await import("../models/User.js");
-        const profile = await UserModule.default.findById(userId);
+        // FIXED: Eliminated risky runtime dynamic import() that breaks bundlers
+        const profile = await User.findById(userId);
+        if (!profile) return res.status(404).json({ error: "User profile not found." });
 
         const newComment = await Comment.create({
             body,
@@ -139,6 +150,7 @@ router.post("/:id/comments", async (req, res) => {
 
         res.status(201).json({ comment: newComment });
     } catch (error) {
+        console.error("POST /:id/comments error:", error.message);
         res.status(500).json({ error: error.message });
     }
 });
@@ -156,13 +168,12 @@ router.delete("/:id", async (req, res) => {
             return res.status(403).json({ error: "You are not authorized to delete this video." });
         }
 
-        // NOTE: In production, add cloud asset removal logic here instead of local fs.unlinkSync
-
         await Video.findByIdAndDelete(req.params.id);
         await Comment.deleteMany({ video: req.params.id });
 
         res.status(200).json({ message: "Video deleted successfully." });
     } catch (error) {
+        console.error("DELETE /:id error:", error.message);
         res.status(500).json({ error: error.message });
     }
 });

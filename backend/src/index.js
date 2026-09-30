@@ -9,7 +9,6 @@ if (process.env.NODE_ENV !== 'production') {
 
 console.log("--- index.js script has started ---");
 
-// Keep a reference to check if the database is already connected
 let isConnected = false;
 
 const connectToDatabase = async () => {
@@ -22,18 +21,23 @@ const connectToDatabase = async () => {
         isConnected = true;
         console.log("MongoDB connected successfully!");
     } catch (error) {
-        console.log("MongoDB connection failed!!!", error);
+        console.error("MongoDB connection failed!!!", error);
         throw error;
     }
 };
 
-// Wrap app in serverless-http and ensure the DB connects first
-const handler = serverless(app, {
-    async request(request, context) {
-        context.callbackWaitsForEmptyEventLoop = false; // Prevents function timeouts with MongoDB
-        await connectToDatabase();
-    }
-});
+// Create the standard serverless handler base
+const serverlessHandler = serverless(app);
 
-export { handler };
+// Export the true handler that Netlify triggers
+export const handler = async (event, context) => {
+    // CRITICAL: Tell AWS Lambda/Netlify to shut down immediately when the 
+    // response is ready, without waiting for the MongoDB connection pool to empty.
+    context.callbackWaitsForEmptyEventLoop = false;
 
+    // Ensure database connectivity before executing the Express app routing
+    await connectToDatabase();
+
+    // Pass execution down to express
+    return await serverlessHandler(event, context);
+};
