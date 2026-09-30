@@ -1,346 +1,157 @@
-// --- 1. GLOBAL VARIABLES & UTILITIES ---
-let cat = 'All';          // Tracks the selected video category
-let me = null;            // Holds the currently logged-in user info
-let current = null;       // Holds the video object currently being watched
+// Global State Tracker
+let currentUserId = null;
 
-// Shortcut helper to grab HTML elements by their ID
-const $ = x => document.getElementById(x);
+// On Initialization: Fetch standard data grid
+document.addEventListener("DOMContentLoaded", () => {
+    loadVideos();
+});
 
-// Helper function to safely clean text and prevent malicious script injections
-function esc(s) {
-    return String(s || '').replace(/[&<>"']/g, c => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;' // ✅ FIXED: Replaced the broken quotes with a valid HTML entity string
-    }[c]));
+// Toast notification helper
+function showToast(message, isError = false) {
+    const toast = document.getElementById("toast");
+    if (!toast) return;
+    toast.innerText = message;
+    toast.style.display = "block";
+    toast.style.background = isError ? "#e74c3c" : "#2ecc71";
+    toast.style.color = "white";
+    
+    setTimeout(() => {
+        toast.style.display = "none";
+    }, 4000);
 }
 
-// Shows quick popup alert messages on the screen
-function toast(m) {
-    let t = $('toast');
-    if (t) {
-        t.textContent = m;
-        t.style.display = 'block';
-        setTimeout(() => t.style.display = 'none', 3000);
-    } else {
-        alert(m);
-    }
+// Open global overlay wrapper
+function openModal(htmlContent) {
+    const modal = document.getElementById("modal");
+    const modalBody = document.getElementById("modalBody");
+    if (!modal || !modalBody) return;
+    
+    modalBody.innerHTML = htmlContent;
+    modal.style.display = "flex";
 }
 
-// Simple Modal UI Toggles
-function openModal() {
-    let m = $('modal');
-    if (m) m.style.display = 'block';
-}
-
+// Close global overlay wrapper
 function closeModal() {
-    let m = $('modal');
-    if (m) m.style.display = 'none';
+    const modal = document.getElementById("modal");
+    if (modal) modal.style.display = "none";
 }
 
-
-// --- 2. CORE NETWORK API HANDLER ---
-async function api(url, opt = {}) {
-    let r = await fetch(url, { credentials: 'include', ...opt });
-    let d = await r.json().catch(() => ({}));
-    if (!r.ok) throw Error(d.error || 'Request failed');
-    return d;
-}
-
-
-// --- 3. APP INITIALIZATION ---
-async function boot() {
-    try {
-        me = (await api('/api/auth/me')).user;
-    } catch (e) {
-        me = null;
-    }
-    loadVideos();
-}
-boot();
-
-
-// --- 4. VIDEO FETCHING & DISPLAY ---
-async function loadVideos() {
-    let q = $('q') ? $('q').value : '';
-    let d = await api('/api/videos?q=' + encodeURIComponent(q) + '&category=' + encodeURIComponent(cat));
-    if ($('heading')) $('heading').textContent = q ? 'Search results' : 'Recommended';
-    renderVideos(d.videos || []);
-}
-
-function renderVideos(vs) {
-    let content = $('content');
-    if (!content) return;
-    content.className = 'grid';
-    content.innerHTML = vs.map(v => `
-        <article class="card" onclick="watch('${v.id || v._id}')">
-            <div class="thumb">
-                <img src="${v.thumbnail || 'https://unsplash.com'}">
-                <span class="dur">${v.duration || 'HD'}</span>
-            </div>
-            <div class="meta">
-                <div class="ca">${(v.owner?.username || '?').toUpperCase()[0]}</div>
-                <div>
-                    <div class="title">${esc(v.title)}</div>
-                    <div class="muted">
-                        ${esc(v.owner?.username || 'Creator')}<br>
-                        ${v.views || 0} views • ${new Date(v.created_at || v.createdAt || Date.now()).toLocaleDateString()}
-                    </div>
-                </div>
-            </div>
-        </article>
-    `).join('') || '<p>No videos found.</p>';
-}
-
-
-// --- 5. VIDEO WATCHING & INTERACTION ROUTINES ---
-async function watch(id) {
-    let d = await api('/api/videos/' + id);
-    current = d.video;
-    
-    $('modalBody').innerHTML = `
-         <video class="video" controls autoplay src="${current.streamUrl}" onplay="recordView('${id}')"></video>
-         <h2>${esc(current.title)}</h2>
-         <div class="muted">${esc(current.owner?.username || 'Creator')} • ${current.views || 0} views</div>
-    
-         <div class="row" style="margin: 12px 0">
-             <button class="primary" onclick="like('${id}')">
-                ${current.hasUserLiked ? '❤️ Liked' : '👍 Like'} ${current.likesCount || 0}
-             </button>
-        
-             <button class="primary" onclick="subscribe('${current.owner?._id || current.owner?.id}')">
-                ${current.subscribed ? 'Subscribed' : 'Subscribe'}
-             </button>
-             <button class="primary" onclick="toast('Added to playlist!')">+ Playlist</button>
-         </div>
-     
-         <p>${esc(current.description)}</p>
-
-        <h3>Comments</h3>
-        <div id="comments">
-            ${(d.comments || []).map(c => `
-                <div class="comment" style="margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px;">
-                    <b>${esc(c.username)}</b>
-                    <p style="margin: 4px 0 0 0; color: #333;">${esc(c.body)}</p>
-                </div>
-            `).join('')}
-        </div>
-        
-        <div class="form">
-            <input id="comment" placeholder="Add a public comment">
-            <button class="primary" onclick="comment('${id}')">Comment</button>
-        </div>
-    `;
-    openModal();
-}
-
-async function recordView(id) {
-    if (me) await api('/api/videos/' + id + '/view', { method: 'POST' });
-}
-
-async function like(id) {
-    if (!me) return openAuth();
-    try {
-        await api('/api/videos/' + id + '/like', { method: 'POST' });
-        watch(id); // Reload modal window data view seamlessly
-    } catch (err) {
-        toast(err.message);
-    }
-}
-
-async function subscribe(id) {
-    if (!me) return openAuth();
-    await api('/api/channels/' + id + '/subscribe', { method: 'POST' });
-    watch(current.id || current._id);
-}
-
-async function comment(id) {
-    if (!me) return openAuth();
-    let body = $('comment').value;
-    if (!body.trim()) return toast("Comment cannot be empty!");
-    
-    await api('/api/videos/' + id + '/comments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body })
-    });
-    watch(id);
-}
-async function accountPage() {
-    openModal();
-    $('modalBody').innerHTML = `<h2>Loading Studio...</h2>`;
-    
-    try {
-        // Fetch all videos, then filter down to ones owned by the logged-in user
-        let d = await api('/api/videos');
-        let myVideos = d.videos.filter(v => v.owner && (v.owner._id === me._id || v.owner === me._id));
-
-        $('modalBody').innerHTML = `
-            <h2>Creator Studio</h2>
-            <p>Logged in as: <b>${esc(me.username)}</b></p>
-            <div class="row" style="margin-bottom: 20px;">
-                <button class="primary" onclick="openUpload()">➕ Upload New Video</button>
-                <button class="primary" style="background: #555;" onclick="logout()">Log out</button>
-            </div>
-            
-            <h3>Your Managed Content</h3>
-            <div class="studio-list" style="max-height: 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">
-                ${myVideos.map(v => `
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: #f0f0f0; border-radius: 4px;">
-                        <span style="font-size: 14px; font-weight: bold;">${esc(v.title)}</span>
-                        <!-- Delete Button triggering custom delete utility -->
-                        <button class="primary" style="background: #cc0000; padding: 4px 8px; font-size: 12px;" onclick="deleteVideo('${v._id || v.id}', event)">
-                            🗑️ Delete
-                        </button>
-                    </div>
-                `).join('') || '<p style="color: #666;">You haven\'t uploaded any videos yet.</p>'}
-            </div>
-        `;
-    } catch (err) {
-        toast(err.message);
-    }
-}
-
-async function deleteVideo(id, event) {
-    // Stop modal or background clicks from conflicting
-    if (event) event.stopPropagation();
-    
-    if (!confirm("Are you absolutely sure you want to permanently delete this video?")) return;
-
-    try {
-        let response = await api('/api/videos/' + id, {
-            method: 'DELETE'
-        });
-        
-        toast(response.message || "Video deleted successfully!");
-        accountPage(); // Refresh the studio dashboard list view instantly
-        loadVideos();  // Refresh the main home screen grid gallery view background
-    } catch (error) {
-        toast(error.message);
-    }
-}
-
-// 🚨 REMEMBER TO EXPOSE IT TO THE WINDOW OBJECT AT THE ABSOLUTE BOTTOM:
-window.deleteVideo = deleteVideo;
-
-
-
-// --- 6. USER ACCOUNT AUTHENTICATION ---
+// ==================== AUTHENTICATION WINDOW INTERFACE ====================
 function openAuth() {
-    if (me) return accountPage();
-    $('modalBody').innerHTML = `
-        <h2>Sign in</h2>
-        <div class="form">
-            <input id="email" placeholder="Email" type="email">
-            <input id="password" type="password" placeholder="Password">
-            <input id="username" placeholder="Username (for signup)">
-            <button class="primary" onclick="auth('login')">Log in</button>
-            <button class="primary" onclick="auth('signup')">Create account</button>
+    // Inject the combined Login and Registration template straight into your modal content
+    const authHTML = `
+        <div style="padding: 10px; font-family: sans-serif;">
+            <h3 style="margin-top: 0; color: #2c3e50;">Account Authentication</h3>
+            
+            <!-- Register Section -->
+            <div style="margin-bottom: 25px; border-bottom: 1px solid #eee; padding-bottom: 20px;">
+                <h4 style="margin: 0 0 10px 0; color: #34495e;">1. Create an Account</h4>
+                <input type="text" id="regUsername" placeholder="Username" style="width:100%; padding:8px; margin-bottom:8px; box-sizing:border-box;">
+                <input type="email" id="regEmail" placeholder="Email Address" style="width:100%; padding:8px; margin-bottom:8px; box-sizing:border-box;">
+                <input type="password" id="regPassword" placeholder="Password" style="width:100%; padding:8px; margin-bottom:10px; box-sizing:border-box;">
+                <button onclick="submitRegister()" style="background:#3498db; color:white; border:none; padding:10px width:100%; cursor:pointer; border-radius:4px; font-weight:bold; width:100%;">Sign Up</button>
+            </div>
+
+            <!-- Login Section -->
+            <div>
+                <h4 style="margin: 0 0 10px 0; color: #34495e;">2. Sign In</h4>
+                <input type="email" id="logEmail" placeholder="Email Address" style="width:100%; padding:8px; margin-bottom:8px; box-sizing:border-box;">
+                <input type="password" id="logPassword" placeholder="Password" style="width:100%; padding:8px; margin-bottom:10px; box-sizing:border-box;">
+                <button onclick="submitLogin()" style="background:#2ecc71; color:white; border:none; padding:10px; width:100%; cursor:pointer; border-radius:4px; font-weight:bold; width:100%;">Log In</button>
+            </div>
         </div>
     `;
-    openModal();
+    openModal(authHTML);
 }
 
-async function auth(type) {
-    try {
-        let body = {
-            email: $('email').value,
-            password: $('password').value
-        };
-        
-        let userEl = $('username');
-        if (userEl && userEl.value) {
-            body.username = userEl.value;
-        }
+// Handle User Account Registration API Connection
+async function submitRegister() {
+    const username = document.getElementById("regUsername").value;
+    const email = document.getElementById("regEmail").value;
+    const password = document.getElementById("regPassword").value;
 
-        me = (await api('/api/auth/' + type, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        })).user;
-        
-        closeModal();
-        toast('Welcome ' + me.username);
-        loadVideos();
-    } catch (e) {
-        toast(e.message);
+    if (!username || !email || !password) {
+        showToast("Please fill in all registration fields.", true);
+        return;
     }
-}
 
-function accountPage() {
-    openModal();
-    $('modalBody').innerHTML = `
-        <h2>${esc(me.username)}</h2>
-        <p>${esc(me.email || '')}</p>
-        <div class="row">
-            <button class="primary" onclick="openUpload()">Creator Studio</button>
-            <button class="primary" onclick="logout()">Log out</button>
-        </div>
-    `;
-}
-
-async function logout() {
-    await api('/api/auth/logout', { method: 'POST' });
-    me = null;
-    closeModal();
-    toast('Logged out');
-    loadVideos();
-}
-
-
-// --- 7. CREATOR DASHBOARD & CONTENT UPLOADS ---
-function openUpload() {
-    if (!me) return openAuth();
-    $('modalBody').innerHTML = `
-        <h2>Upload video</h2>
-        <form class="form" onsubmit="upload(event)">
-            <input name="title" id="uploadTitle" required placeholder="Title">
-            <textarea name="description" id="uploadDesc" placeholder="Description"></textarea>
-            <select name="category" id="uploadCat">
-                <option>Technology</option>
-                <option>Music</option>
-                <option>Gaming</option>
-                <option>News</option>
-                <option>Sports</option>
-                <option>Education</option>
-                <option>Other</option>
-            </select>
-            <input name="video" type="file" accept="video/*" required>
-            <button class="primary" type="submit">Upload</button>
-        </form>
-    `;
-    openModal();
-}
-
-async function upload(event) {
-    event.preventDefault();
-    toast("Uploading file to server...");
     try {
-        const formDataPayload = new FormData(event.target);
-        let r = await fetch('/api/videos/upload', {
-            method: 'POST',
-            body: formDataPayload
+        const res = await fetch("/api/auth/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, email, password })
         });
-        let d = await r.json();
-        if (!r.ok) throw Error(d.error || 'Upload failed.');
-        closeModal();
-        toast("Video published successfully!");
-        loadVideos();
-    } catch (error) {
-        toast(error.message);
+        const data = await res.json();
+
+        if (res.ok) {
+            showToast("Account created successfully! You can now log in.");
+        } else {
+            showToast(data.error || "Registration failed.", true);
+        }
+    } catch (err) {
+        showToast("Server network connection error.", true);
     }
 }
 
-// --- 8. EXPOSE FUNCTIONS TO GLOBAL WINDOW OBJECT ---
-window.watch = watch;
-window.like = like;
-window.subscribe = subscribe;
-window.comment = comment;
-window.openAuth = openAuth;
-window.auth = auth;
-window.logout = logout;
-window.openUpload = openUpload;
-window.upload = upload;
-window.closeModal = closeModal;
+// Handle User Account Login API Connection
+async function submitLogin() {
+    const email = document.getElementById("logEmail").value;
+    const password = document.getElementById("logPassword").value;
+
+    if (!email || !password) {
+        showToast("Please enter your email and password.", true);
+        return;
+    }
+
+    try {
+        const res = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            showToast(`Welcome back, ${data.user?.username || "User"}!`);
+            currentUserId = data.user?.id || null;
+            closeModal();
+        } else {
+            showToast(data.error || "Invalid credentials.", true);
+        }
+    } catch (err) {
+        showToast("Server network connection error.", true);
+    }
+}
+
+// Placeholder loadVideos script hook to prevent initialization breakage
+async function loadVideos() {
+    const content = document.getElementById("content");
+    const searchVal = document.getElementById("q")?.value || "";
+    
+    try {
+        const url = searchVal ? `/api/videos?q=${encodeURIComponent(searchVal)}` : '/api/videos';
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        if (content) {
+            if (data.videos && data.videos.length > 0) {
+                content.innerHTML = data.videos.map(v => `<div class="video-card"><h3>${v.title}</h3></div>`).join('');
+            } else {
+                content.innerHTML = "<p style='grid-column: 1/-1; text-align: center; color: #7f8c8d;'>No videos loaded yet.</p>";
+            }
+        }
+    } catch (err) {
+        if (content) content.innerHTML = "<p>Error reaching video content servers.</p>";
+    }
+}
+
+// Upload Placeholder interface handler
+function openUpload() {
+    openModal(`
+        <div style="padding:10px;">
+            <h3 style="margin-top:0;">Upload Video Asset</h3>
+            <p style="color:#7f8c8d; font-size:14px;">Authentication registration must be completed before cloud transfer tools are initialized.</p>
+            <button onclick="closeModal()" style="padding:8px 12px;">Close</button>
+        </div>
+    `);
+}
