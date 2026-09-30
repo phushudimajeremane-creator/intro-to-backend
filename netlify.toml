@@ -1,22 +1,22 @@
 [build]
-  # Keep your core backend compiling as expected
-  base = "backend"
-  functions = "src"
-  # FIXED: Tells Netlify to serve files inside the root directory or public folder statically
-  publish = "." 
+  # Tell Netlify the workspace root folder is the base
+  base = ""
+  # Points Netlify to your frontend files at the root
+  publish = "."
+  # Tells Netlify exactly where to find and compile your backend functions
+  functions = "backend/src"
 
 [functions]
   node_bundler = "esbuild"
 
-# Rule 1: Send all explicit API traffic directly to your Express Backend Function
+# 1. Forward all explicit API calls straight to your Express serverless app
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/index/api/:splat"
   status = 200
   force = true
 
-# Rule 2: If a visitor hits a path that doesn't match an API route or a static file,
-# fallback cleanly to your main HTML file on the CDN layer.
+# 2. Fallback rule: Forward the root path (/) and any non-API web routes to your index.html
 [[redirects]]
   from = "/*"
   to = "/index.html"
